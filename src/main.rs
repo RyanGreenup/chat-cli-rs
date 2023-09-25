@@ -165,9 +165,71 @@ fn edit_chat_in_editor(file: PathBuf) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    check_args()?;
     run()?;
 
     Ok(())
+}
+
+fn check_args() -> Result<()> {
+    // Get arguments vector
+    let args: Vec<String> = env::args().collect();
+
+    // Check if there are any arguments
+    match args.len() {
+        1 => return Ok(()),
+        3 => {
+            match args.get(1).expect("No first argument").as_str() {
+                "-f" => {
+                    let file = args.get(2).expect("No second argument");
+                    let file = PathBuf::from(file);
+                    if !file.exists() {
+                        println!("File does not exist");
+                        std::process::exit(1);
+                    }
+                    send_file(file).unwrap_or_else(|_| panic!("Unable to send file"))
+                }
+                _ => {
+                    usage(1);
+                }
+            };
+        }
+        _ => {
+            usage(1);
+        }
+    };
+
+    Ok(())
+}
+
+fn send_file(file: PathBuf) -> Result<()> {
+    // Read text in from file
+    std::fs::read_to_string(&file)?;
+
+    Ok(())
+}
+
+fn usage(rc: i32) {
+    println!("Usage: chat-cli-rs [-f <file>]");
+    std::process::exit(rc);
+}
+
+// TODO should this be a method?
+#[tokio::main]
+async fn request_chat_completion(
+    messages: Vec<ChatCompletionMessage>,
+) -> Result<ChatCompletionMessage> {
+    // Request Chat Completion
+    let model = MODEL;
+
+    let chat_completion = ChatCompletion::builder(model, messages.clone())
+        // .max_tokens(4096 as u64) // defaults to 4096 <https://docs.rs/openai/1.0.0-alpha.12/openai/chat/struct.ChatCompletionBuilder.html#method.max_tokens>
+        .create()
+        .await
+        .expect("Unable to get Chat Completion");
+
+    // Get the returned Message
+    Ok(chat_completion.choices.first().unwrap().message.clone())
 }
 
 #[tokio::main]
@@ -200,31 +262,23 @@ async fn run() -> Result<()> {
         // Print the Messages for Feedback
         println!("{:#?}", messages);
 
-        // Request Chat Completion
-        // let model = "gpt-3.5-turbo";
-        // let model = "gpt-3.5-turbo-16k"
-        let model = "gpt-4";
+        let returned_message = match request_chat_completion(messages.clone()) {
+            Ok(m) => m,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                continue;
+            }
+        };
 
-        println!("Model: {}", model);
-        let chat_completion = ChatCompletion::builder(model, messages.clone())
-            // .max_tokens(4096 as u64) // defaults to 4096 <https://docs.rs/openai/1.0.0-alpha.12/openai/chat/struct.ChatCompletionBuilder.html#method.max_tokens>
-            .create()
-            .await
-            .expect("Unable to get Chat Completion");
-
-        // Get the returned Message
-        let returned_message = chat_completion.choices.first().unwrap().message.clone();
+        let message_string = returned_message
+            .content
+            .clone()
+            .expect("Unable to get content from message")
+            .trim()
+            .to_string();
 
         // Add the message to the chat file
-        Message::append(
-            &returned_message
-                .content
-                .clone()
-                .expect("Unable to get content from message")
-                .trim(),
-            returned_message.role,
-            &chat_file_path,
-        )?;
+        Message::append(&message_string, returned_message.role, &chat_file_path)?;
 
         // Print the response
         println!(
@@ -257,3 +311,7 @@ fn get_current_time_unix() -> String {
         current_time.subsec_millis()
     )
 }
+
+const MODEL: &str = "gpt-4";
+//                  "gpt-3.5-turbo";
+//                  "gpt-3.5-turbo-16k"
