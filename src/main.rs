@@ -141,8 +141,9 @@ impl Message {
 
 /// Set the API key for OpenAI
 fn set_api_key() {
-    dotenv().unwrap();
-    set_key(env::var("OPENAI_KEY").unwrap());
+    // dotenv().unwrap();
+    // set_key(env::var("").unwrap());
+    set_key("***REMOVED***".to_string());
 }
 
 /// Send desktop notification
@@ -165,13 +166,13 @@ fn edit_chat_in_editor(file: PathBuf) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    check_args()?;
-    run()?;
+    check_args().await?;
+    run().await?;
 
     Ok(())
 }
 
-fn check_args() -> Result<()> {
+async fn check_args() -> Result<()> {
     // Get arguments vector
     let args: Vec<String> = env::args().collect();
 
@@ -187,7 +188,9 @@ fn check_args() -> Result<()> {
                         println!("File does not exist");
                         std::process::exit(1);
                     }
-                    send_file(file).unwrap_or_else(|_| panic!("Unable to send file"))
+                    send_file(file).await.unwrap_or_else(|_| panic!("Unable to send file"));
+                    std::process::exit(0);
+
                 }
                 "-h" | "--help" => {
                     usage(0);
@@ -205,7 +208,7 @@ fn check_args() -> Result<()> {
     Ok(())
 }
 
-fn send_file(file: PathBuf) -> Result<()> {
+async fn send_file(file: PathBuf) -> Result<()> {
     // Load the chat into a vector of ChatCompletionMessage
     let messages: Vec<ChatCompletionMessage> = Message::read_messages(&file)?
         .into_iter()
@@ -215,7 +218,7 @@ fn send_file(file: PathBuf) -> Result<()> {
     // Print the Messages for Feedback
     println!("{:#?}", messages);
 
-    let returned_message = match request_chat_completion(messages.clone()) {
+    let returned_message = match request_chat_completion(messages.clone()).await {
         Ok(m) => m,
         Err(e) => {
             panic!("Error: {:?}", e);
@@ -233,7 +236,6 @@ fn usage(rc: i32) {
 }
 
 // TODO should this be a method?
-#[tokio::main]
 async fn request_chat_completion(
     messages: Vec<ChatCompletionMessage>,
 ) -> Result<ChatCompletionMessage> {
@@ -250,7 +252,6 @@ async fn request_chat_completion(
     Ok(chat_completion.choices.first().unwrap().message.clone())
 }
 
-#[tokio::main]
 async fn run() -> Result<()> {
     set_api_key();
 
@@ -280,7 +281,7 @@ async fn run() -> Result<()> {
         // Print the Messages for Feedback
         println!("{:#?}", messages);
 
-        let returned_message = match request_chat_completion(messages.clone()) {
+        let returned_message = match request_chat_completion(messages.clone()).await {
             Ok(m) => m,
             Err(e) => {
                 println!("Error: {:?}", e);
