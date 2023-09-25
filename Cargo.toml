@@ -1,0 +1,15 @@
+[package]
+name = "chat-cli-rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dotenvy = "0.15.6"
+tokio = { version = "1.28.0", features = ["full"] }
+tempfile = "3.5.0"
+regex = "1.8.1"
+syntect = "5.0.0"
+anyhow = "1.0.71"
+openai = "1.0.0-alpha.12"
