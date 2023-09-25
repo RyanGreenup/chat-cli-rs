@@ -206,8 +206,23 @@ fn check_args() -> Result<()> {
 }
 
 fn send_file(file: PathBuf) -> Result<()> {
-    // Read text in from file
-    std::fs::read_to_string(&file)?;
+    // Load the chat into a vector of ChatCompletionMessage
+    let messages: Vec<ChatCompletionMessage> = Message::read_messages(&file)?
+        .into_iter()
+        .map(|m| m.into())
+        .collect();
+
+    // Print the Messages for Feedback
+    println!("{:#?}", messages);
+
+    let returned_message = match request_chat_completion(messages.clone()) {
+        Ok(m) => m,
+        Err(e) => {
+            panic!("Error: {:?}", e);
+        }
+    };
+
+    append_message_to_file(returned_message, file)?;
 
     Ok(())
 }
@@ -273,29 +288,39 @@ async fn run() -> Result<()> {
             }
         };
 
-        let message_string = returned_message
+        append_message_to_file(returned_message, chat_file_path.clone())?;
+    }
+}
+
+// TODO should this be a method
+fn append_message_to_file(
+    returned_message: ChatCompletionMessage,
+    chat_file_path: PathBuf,
+) -> Result<()> {
+    let message_string = returned_message
+        .content
+        .clone()
+        .expect("Unable to get content from message")
+        .trim()
+        .to_string();
+
+    // Add the message to the chat file
+    Message::append(&message_string, returned_message.role, &chat_file_path)?;
+
+    // Print the response
+    println!(
+        "{:#?}: {}",
+        &returned_message.role,
+        &returned_message
             .content
-            .clone()
             .expect("Unable to get content from message")
             .trim()
-            .to_string();
+    );
 
-        // Add the message to the chat file
-        Message::append(&message_string, returned_message.role, &chat_file_path)?;
+    // Send Desktop Notification
+    send_notification("Chat CLI Finished API query");
 
-        // Print the response
-        println!(
-            "{:#?}: {}",
-            &returned_message.role,
-            &returned_message
-                .content
-                .expect("Unable to get content from message")
-                .trim()
-        );
-
-        // Send Desktop Notification
-        send_notification("Chat CLI Finished API query");
-    }
+    Ok(())
 }
 
 /// Get user's input
