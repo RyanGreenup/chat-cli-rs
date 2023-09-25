@@ -165,62 +165,9 @@ fn edit_chat_in_editor(file: PathBuf) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    check_args()?;
     run()?;
 
     Ok(())
-}
-
-fn check_args() -> Result<()> {
-    // Get arguments vector
-    let args: Vec<String> = env::args().collect();
-
-    // Check if there are any arguments
-    match args.len() {
-        1 => return Ok(()),
-        3 => {
-            match args.get(1).expect("No first argument").as_str() {
-                "-f" => {
-                    let file = args.get(2).expect("No second argument");
-                    let file = PathBuf::from(file);
-                    if !file.exists() {
-                        println!("File does not exist");
-                        std::process::exit(1);
-                    }
-                    send_file(file);
-                }
-                _ => {
-                    usage(1);
-                }
-            };
-        }
-        _ => {
-            usage(1);
-        }
-    };
-
-    Ok(())
-}
-
-fn send_file(file: PathBuf) -> Result<()> {
-    // Read text in from file
-    std::fs::read_to_string(&file)?;
-
-    Ok(())
-}
-
-fn usage(rc: i32) {
-    println!("Usage: chat-cli-rs [-f <file>]");
-    std::process::exit(rc);
-}
-
-fn chat_completion() -> Result<>{
-
-        let chat_completion = ChatCompletion::builder(model, messages.clone())
-            // .max_tokens(4096 as u64) // defaults to 4096 <https://docs.rs/openai/1.0.0-alpha.12/openai/chat/struct.ChatCompletionBuilder.html#method.max_tokens>
-            .create()
-            .await
-            .expect("Unable to get Chat Completion");
 }
 
 #[tokio::main]
@@ -254,7 +201,9 @@ async fn run() -> Result<()> {
         println!("{:#?}", messages);
 
         // Request Chat Completion
-        let model = MODEL;
+        // let model = "gpt-3.5-turbo";
+        // let model = "gpt-3.5-turbo-16k"
+        let model = "gpt-4";
 
         println!("Model: {}", model);
         let chat_completion = ChatCompletion::builder(model, messages.clone())
@@ -308,7 +257,3 @@ fn get_current_time_unix() -> String {
         current_time.subsec_millis()
     )
 }
-
-const MODEL: &str = "gpt-4";
-//                  "gpt-3.5-turbo";
-//                  "gpt-3.5-turbo-16k"
