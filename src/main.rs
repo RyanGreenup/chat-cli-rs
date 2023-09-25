@@ -189,6 +189,9 @@ fn check_args() -> Result<()> {
                     }
                     send_file(file).unwrap_or_else(|_| panic!("Unable to send file"))
                 }
+                "-h" | "--help" => {
+                    usage(0);
+                }
                 _ => {
                     usage(1);
                 }
