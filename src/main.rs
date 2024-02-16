@@ -144,7 +144,7 @@ impl Message {
 /// Set the API key for OpenAI
 fn set_api_key() {
     // dotenv().unwrap();
-    set_key(env::var("OPENAI_KEY").unwrap());
+    set_key(env::var("OPENAI_API_KEY").unwrap());
 }
 
 /// Send desktop notification
