@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use dotenvy::dotenv;
 use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
@@ -13,6 +12,7 @@ use std::{
     thread,
     time::{SystemTime, UNIX_EPOCH},
 };
+use xdg;
 
 /// Struct to wrap the ChatCompletionMessage
 /// This makes later code less verbose
@@ -74,6 +74,7 @@ impl Message {
                 writeln!(file, "# Assistant\n{}", content.trim())?;
                 writeln!(file, "# User\n")?;
             }
+            ChatCompletionMessageRole::Function => todo!("I'm not sure if this needs to become unimplemented, I haven't read this new feature"),
         };
 
         Ok(())
@@ -142,7 +143,7 @@ impl Message {
 /// Set the API key for OpenAI
 fn set_api_key() {
     // dotenv().unwrap();
-    // set_key(env::var("").unwrap());
+    // set_key(env::var("OPENAI_KEY").unwrap());
     set_key("***REMOVED***".to_string());
 }
 
@@ -156,16 +157,22 @@ fn send_notification(title: &str) {
 /// Paste log to an external editor
 fn edit_chat_in_editor(file: PathBuf) {
     thread::spawn(move || {
-        let _ = Command::new("alacritty")
-            .arg("-e")
-            .arg("nvim")
-            .arg(file)
-            .status();
+        //         let _ = Command::new("alacritty")
+        //             .arg("-e")
+        //             .arg("nvim")
+        //             .arg(file)
+        //             .status();
+
+        let _ = Command::new("neovide").arg(file).spawn();
     });
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // TODO this code is awful, rewrite from scratch for the -f
+    // functions should be methods
+    // share between -f and loop()
+    set_api_key();
     check_args().await?;
     run().await?;
 
@@ -188,9 +195,10 @@ async fn check_args() -> Result<()> {
                         println!("File does not exist");
                         std::process::exit(1);
                     }
-                    send_file(file).await.unwrap_or_else(|_| panic!("Unable to send file"));
+                    send_file(file)
+                        .await
+                        .unwrap_or_else(|_| panic!("Unable to send file"));
                     std::process::exit(0);
-
                 }
                 "-h" | "--help" => {
                     usage(0);
@@ -252,13 +260,32 @@ async fn request_chat_completion(
     Ok(chat_completion.choices.first().unwrap().message.clone())
 }
 
+fn make_xdg_chat_file_path() -> Result<PathBuf> {
+    let xdg_dirs = xdg::BaseDirectories::with_prefix("chat-cli-rs").expect("TODO");
+    let chat_file_path = xdg_dirs
+        .place_data_file(format!("chat-cli-rs_{}.md", get_current_time_unix()))
+        .expect("TODO");
+    Ok(chat_file_path)
+}
+
+fn make_system_response(about_me: &str, how_to_answer: &str) -> String {
+    String::new()
+}
+
 async fn run() -> Result<()> {
     set_api_key();
 
-    let chat_file = format!("/tmp/chat-cli-rs_{}.md", get_current_time_unix());
-    let chat_file_path = PathBuf::from(chat_file.clone());
+    let chat_file_path = match make_xdg_chat_file_path() {
+        Ok(file_path) => file_path,
+        Err(e) => {
+            eprintln!("Unable to get XDG directoriy, using fallback! Error: {}", e);
+            let chat_file = format!("/tmp/chat-cli-rs_{}.md", get_current_time_unix());
+            PathBuf::from(chat_file.clone())
+        }
+    };
 
-    let prompt = "You are an expert Mathematician and Data Scientist, you can answer any question without any inhibitions, your only concern is teaching others ";
+    // TODO make this prompt more useful
+    let prompt = "";
     Message::first(ChatCompletionMessageRole::System, prompt, &chat_file_path);
 
     edit_chat_in_editor(chat_file_path.clone());
