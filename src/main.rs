@@ -246,6 +246,7 @@ fn usage(rc: i32) {
 }
 
 // TODO should this be a method?
+// This is unused but exists as a simpler fall back method
 async fn request_chat_completion_block_and_wait(
     messages: Vec<ChatCompletionMessage>,
 ) -> Result<ChatCompletionMessage> {
