@@ -285,8 +285,6 @@ fn auto_expert_system_response() -> String {
 }
 
 async fn run() -> Result<()> {
-    set_api_key();
-
     let chat_file_path = match make_xdg_chat_file_path() {
         Ok(file_path) => file_path,
         Err(e) => {
