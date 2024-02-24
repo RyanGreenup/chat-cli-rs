@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use openai::{
-    chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
+    chat::{ChatCompletion, ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
 };
 use std::{
@@ -12,6 +12,7 @@ use std::{
     thread,
     time::{SystemTime, UNIX_EPOCH},
 };
+use tokio::sync::mpsc::Receiver;
 
 /// Struct to wrap the ChatCompletionMessage
 /// This makes later code less verbose
@@ -119,7 +120,8 @@ impl Message {
                     }
                     _ => {
                         eprint!("Error! Line detected as Role seperator heading (e.g. # User) but does not match one");
-                        eprint!("This is a bug! here's a unique number for grep: 83792828")
+                        eprint!("This may be a bug! here's a unique number for grep: 83792828")
+                        // could just be a top level heading maybe?
                     }
                 }
             } else {
@@ -244,7 +246,7 @@ fn usage(rc: i32) {
 }
 
 // TODO should this be a method?
-async fn request_chat_completion(
+async fn request_chat_completion_block_and_wait(
     messages: Vec<ChatCompletionMessage>,
 ) -> Result<ChatCompletionMessage> {
     // Request Chat Completion
@@ -258,6 +260,51 @@ async fn request_chat_completion(
 
     // Get the returned Message
     Ok(chat_completion.choices.first().unwrap().message.clone())
+}
+
+// TODO should this be a method?
+async fn request_chat_completion(
+    messages: Vec<ChatCompletionMessage>,
+) -> Result<ChatCompletionMessage> {
+    // Request Chat Completion
+    let model = MODEL;
+
+    let chat_stream = ChatCompletionDelta::builder(model, messages.clone())
+        // .max_tokens(4096 as u64) // defaults to 4096 <https://docs.rs/openai/1.0.0-alpha.12/openai/chat/struct.ChatCompletionBuilder.html#method.max_tokens>
+        .create_stream()
+        .await
+        .expect("Unable to get Chat Stream");
+
+    let chat_completion: ChatCompletion = listen_for_tokens(chat_stream).await;
+
+    // Get the returned Message
+    Ok(chat_completion.choices.first().unwrap().message.clone())
+}
+
+async fn listen_for_tokens(mut chat_stream: Receiver<ChatCompletionDelta>) -> ChatCompletion {
+    let mut merged: Option<ChatCompletionDelta> = None;
+    while let Some(delta) = chat_stream.recv().await {
+        let choice = &delta.choices[0];
+        if let Some(role) = &choice.delta.role {
+            print!("{:#?}: ", role);
+        }
+        if let Some(content) = &choice.delta.content {
+            print!("{}", content);
+        }
+        if let Some(_) = &choice.finish_reason {
+            // The message being streamed has been fully received.
+            print!("\n");
+        }
+        stdout().flush().unwrap();
+        // Merge completion into accrued.
+        match merged.as_mut() {
+            Some(c) => {
+                c.merge(delta).unwrap();
+            }
+            None => merged = Some(delta),
+        };
+    }
+    merged.unwrap().into()
 }
 
 fn make_xdg_chat_file_path() -> Result<PathBuf> {
@@ -294,7 +341,7 @@ async fn run() -> Result<()> {
         }
     };
 
-    // TODO make this prompt more useful
+    // TODO make this prompt more useful or more dynamic with cli flags
     let prompt: &str = &auto_expert_system_response();
     Message::first(ChatCompletionMessageRole::System, prompt, &chat_file_path);
 
@@ -303,7 +350,7 @@ async fn run() -> Result<()> {
     loop {
         // Prompt the user to continue
         println!(
-            "\n\nUpdate the log at {} and Press Enter to Continue",
+            "\n\nUpdate the log at:\n\t{}\nand Press Enter to Continue",
             chat_file_path.to_str().unwrap_or_else(|| {
                 eprintln!("Unable to convert PathBuf to String");
                 ""
@@ -331,6 +378,18 @@ async fn run() -> Result<()> {
 
         append_message_to_file(returned_message, chat_file_path.clone())?;
     }
+}
+
+fn syntax_highlight_markdown(s: &str) -> String {
+    let mut result = String::new();
+    for line in s.lines() {
+        if line.starts_with("# ") {
+            result.push_str(&format!("\n# {}", line));
+        } else {
+            result.push_str(&format!("\n{}", line));
+        }
+    }
+    result
 }
 
 // TODO should this be a method
