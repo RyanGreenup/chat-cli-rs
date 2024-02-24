@@ -5,7 +5,6 @@ use openai::{
 };
 use std::{
     env,
-    fmt::format,
     fs::{File, OpenOptions},
     io::{stdin, stdout, Write},
     path::PathBuf,
@@ -13,7 +12,6 @@ use std::{
     thread,
     time::{SystemTime, UNIX_EPOCH},
 };
-use xdg;
 
 /// Struct to wrap the ChatCompletionMessage
 /// This makes later code less verbose
