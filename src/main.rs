@@ -264,6 +264,9 @@ async fn request_chat_completion_block_and_wait(
 }
 
 // TODO should this be a method?
+// NOTE that would require a struct for a vector of messages
+// (only have ChatCompletionMessage right now)
+// NOTE:  Consider creating a struct like 'ChatService'
 async fn request_chat_completion(
     messages: Vec<ChatCompletionMessage>,
 ) -> Result<ChatCompletionMessage> {
